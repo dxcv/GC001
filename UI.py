@@ -1,15 +1,15 @@
 #encoding=utf-8
 
 import sys
-import matplotlib
-import pandas as pd
+#import matplotlib
 import numpy as np
+import pandas as pd
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
-import seaborn as sns
+#from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+#from matplotlib.figure import Figure
+#import matplotlib.pyplot as plt
+#import seaborn as sns
 from QuantLib import *
 import cal as cl
 
@@ -24,7 +24,8 @@ class Calculation(QWidget):
 		self.CreateCalendar()
 		self.comboBoxAct()
 		self.EditChange()
-		
+		self.parameters=cl.LinearReg()
+		self.GC=self.parameters.GC
 
 		self.initUI()
 	def CreateLabel(self):
@@ -88,7 +89,7 @@ class Calculation(QWidget):
 		grid.addWidget(self.UnderlyingCodeEdit,0,1)
 		grid.addWidget(self.lblStartDate,0,2)
 		grid.addWidget(self.btnStartDate,0,3)
-		grid.addWidget(self.calStartDate,0,3)
+		grid.addWidget(self.calStartDate,0,0,3,6)
 
 		grid.addWidget(self.lblUnderlyingPrice,0,4)	
 		grid.addWidget(self.UnderlyingPriceEdit,0,5)
@@ -96,7 +97,7 @@ class Calculation(QWidget):
 		grid.addWidget(self.UnderlyingNameEdit,1,1)
 		grid.addWidget(self.lblEndDate,1,2)
 		grid.addWidget(self.btnEndDate,1,3)
-		grid.addWidget(self.calEndDate,1,3)			
+		grid.addWidget(self.calEndDate,0,0,3,6)			
 	
 		grid.addWidget(self.lblStrike,1,4)
 		grid.addWidget(self.StrikeEdit,1,5)
@@ -116,9 +117,10 @@ class Calculation(QWidget):
 		self.show()
 		
 		self.setWindowTitle('option calculation')
-		self.setGeometry(300,300,900,300)
+		self.setGeometry(300,300,500,200)
 
 	def btncalculate(self):
+		'''
 		parameters=cl.Paras()
 		sigma=parameters.sigma[0]
 		alpha=parameters.alpha[0]
@@ -129,17 +131,34 @@ class Calculation(QWidget):
 		optionType=self.OptionType
 		strike=self.strike
 		china_calendar=China()
-		
 		tradedays=china_calendar.businessDaysBetween(self.st_date,self.ed_date)
 
 		ML=cl.Model(alpha,mu,spot,sigma,tradedays,strike,10000,optionType,min_)
 		self.OptionPriceEdit.setText(str(ML.price))
+		'''
+		parameters=self.parameters
+		
+		sigma=parameters.sigma
+		alpha=parameters.alpha[0]
+		mu=parameters.mu[0]
+		spot=self.spot
+		
+		optionType=self.OptionType
+		strike=self.strike
+		china_calendar=China()
+		tradedays=china_calendar.businessDaysBetween(self.st_date,self.ed_date)
+		ETD=cl.ETD(alpha,mu,spot,sigma,tradedays,strike,10000,optionType)
+		self.OptionPriceEdit.setText(str(round(ETD.price,4)))
+
+		
 	def btnrecalculate(self):
 		self.OptionPriceEdit.setText('')
+		self.StrikeEdit.setText('')
 	def btnStartDateChange(self):
 		self.calStartDate.show()
+		self.calEndDate.hide()
 		self.calStartDate.setGridVisible(True)
-		self.calStartDate.resize(2,2)
+		#self.calStartDate.resize(2,2)
 		self.calStartDate.clicked[QDate].connect(self.showStartDate)
 		
 	def showStartDate(self,date):
@@ -151,15 +170,20 @@ class Calculation(QWidget):
 		else:
 			month=int(txt[3:5])
 		self.st_date=Date(day,month,year)
-
+		
+		time=str(year)+'-'+str(month)+'-'+str(day)
+		self.spot=self.GC.loc[:time].iloc[-1][0]		
+		self.UnderlyingPriceEdit.setText(str(self.spot))
+		
 		self.btnStartDate.setText(str(year)+'/'+str(month)+'/'+str(day))
 
-		
 		self.calStartDate.hide()
+	
 	def btnEndDateChange(self):
 		self.calEndDate.show()
+		self.calStartDate.hide()
 		self.calEndDate.setGridVisible(True)
-		self.calEndDate.resize(2,2)
+		#self.calEndDate.resize(2,2)
 		self.calEndDate.clicked[QDate].connect(self.showEndDate)
 		
 		
@@ -176,13 +200,13 @@ class Calculation(QWidget):
 		self.btnEndDate.setText(str(year)+'/'+str(month)+'/'+str(day))
 		self.calEndDate.hide()
 		
-		
-		
-
+	
 	def onActivatedType(self,Type):
 		self.OptionType=Type
 	def StrikeChange(self,strike):
 		self.strike=float(strike)
+
+	
 if __name__=='__main__':
 	#sns.set(color_codes=True)
 	app=QApplication(sys.argv)
