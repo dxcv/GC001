@@ -24,8 +24,10 @@ class Calculation(QWidget):
 		self.CreateCalendar()
 		self.comboBoxAct()
 		self.EditChange()
-		self.parameters=cl.LinearReg()
-		self.GC=self.parameters.GC
+		self.Linear_parameters=cl.LinearReg()
+		self.moment_parameters=cl.moment()
+		self.GMM_parameters=cl.GMM()
+		self.GC=self.Linear_parameters.GC
 
 		self.initUI()
 	def CreateLabel(self):
@@ -33,8 +35,11 @@ class Calculation(QWidget):
 		self.lblEndDate=QLabel('结束日期',self)
 		self.lblUnderlyingCode=QLabel('标的代码',self)
 		self.lblUnderlyingName=QLabel('标的名称',self)
-		self.lblStrike=QLabel('执行价格',self)
-		self.lblUnderlyingPrice=QLabel('标的现价',self)
+		self.lblStrike=QLabel('　执行价格',self)
+		self.lblUnderlyingPrice=QLabel('　标的现价',self)
+
+		self.lbltradedays=QLabel('交易天数',self)
+		self.lblParametersCal=QLabel('参数拟合方法',self)
 
 		self.lblOptionPrice=QLabel('期权价格',self)
 		self.lblOptionType=QLabel('期权类型',self)
@@ -58,6 +63,7 @@ class Calculation(QWidget):
 		self.UnderlyingNameEdit=QLineEdit(self)
 		self.UnderlyingNameEdit.setText('GC001')
 
+		self.tradedaysEdit=QLineEdit(self)
 		self.StrikeEdit=QLineEdit(self)
 
 		self.UnderlyingPriceEdit=QLineEdit(self)
@@ -69,6 +75,13 @@ class Calculation(QWidget):
 		self.comboType.addItem('')
 		self.comboType.addItem('call')
 		self.comboType.addItem('put')
+
+		self.comboCal=QComboBox(self)
+		self.comboCal.addItem('')
+		self.comboCal.addItem('矩估计')
+		self.comboCal.addItem('最小二乘法')
+		self.comboCal.addItem('GMM')
+		self.comboCal.addItem('贝叶斯估计')
 	def CreateCalendar(self):
 		self.calStartDate=QCalendarWidget(self)
 		self.calStartDate.hide()
@@ -78,10 +91,10 @@ class Calculation(QWidget):
 	def comboBoxAct(self):
 
 		self.comboType.activated[str].connect(self.onActivatedType)
+		self.comboCal.activated[str].connect(self.onActivatedCalibration)
 	def EditChange(self):
 		self.StrikeEdit.textChanged[str].connect(self.StrikeChange)
 	def initUI(self):
-
 
 
 		grid=QGridLayout()
@@ -104,6 +117,12 @@ class Calculation(QWidget):
 		
 		grid.addWidget(self.lblOptionPrice,3,0)
 		grid.addWidget(self.OptionPriceEdit,3,1)
+
+		grid.addWidget(self.lbltradedays,2,2)
+		grid.addWidget(self.tradedaysEdit,2,3)
+		grid.addWidget(self.lblParametersCal,2,4)
+		grid.addWidget(self.comboCal,2,5)
+
 		grid.addWidget(self.lblOptionType,2,0)
 		grid.addWidget(self.comboType,2,1)		
 		
@@ -136,24 +155,65 @@ class Calculation(QWidget):
 		ML=cl.Model(alpha,mu,spot,sigma,tradedays,strike,10000,optionType,min_)
 		self.OptionPriceEdit.setText(str(ML.price))
 		'''
-		parameters=self.parameters
+		if self.ParameterCalibration==u'最小二乘法':		
+			parameters=self.Linear_parameters
+			sigma=parameters.sigma
+			alpha=parameters.alpha[0]
+			mu=parameters.mu[0]
+			print "最小二乘法"
+			print "alpha,mu,sigma"
+			print alpha,mu,sigma
+		elif self.ParameterCalibration==u'矩估计':
+			parameters=self.moment_parameters
+			sigma=parameters.sigma[0]
+			alpha=parameters.alpha[0]
+			mu=parameters.mu[0]
+			print "矩估计"
+			print "alpha,mu,sigma"
+			print alpha,mu,sigma
+		elif self.ParameterCalibration=='GMM':
+			parameters=self.GMM_parameters
+			alpha=parameters.res.x[0]
+			mu=parameters.res.x[1]
+			sigma=parameters.res.x[2]
+			print "GMM"
+			print "alpha,mu,sigma"
+			print alpha,mu,sigma
+		elif self.ParameterCalibration==u'贝叶斯估计':
+			pass
+		else:
+			pass
 		
-		sigma=parameters.sigma
-		alpha=parameters.alpha[0]
-		mu=parameters.mu[0]
 		spot=self.spot
 		
 		optionType=self.OptionType
 		strike=self.strike
-		china_calendar=China()
-		tradedays=china_calendar.businessDaysBetween(self.st_date,self.ed_date)
+
+		tradedays=self.tradedays
 		ETD=cl.ETD(alpha,mu,spot,sigma,tradedays,strike,10000,optionType)
 		self.OptionPriceEdit.setText(str(round(ETD.price,4)))
 
 		
 	def btnrecalculate(self):
-		self.OptionPriceEdit.setText('')
-		self.StrikeEdit.setText('')
+		self.OptionPriceEdit.setText(' ')
+		self.StrikeEdit.setText(' ')
+
+		self.comboType.clear()
+		self.comboType.addItem('')
+		self.comboType.addItem('call')
+		self.comboType.addItem('put')
+		self.comboCal.clear()
+		self.comboCal.addItem('')
+		self.comboCal.addItem('矩估计')
+		self.comboCal.addItem('最小二乘法')
+		self.comboCal.addItem('GMM')
+		self.comboCal.addItem('贝叶斯估计')
+
+		self.btnStartDate.setText(' ')
+		self.btnEndDate.setText(' ')
+		self.UnderlyingPriceEdit.setText(' ')
+		
+		self.tradedaysEdit.clear()
 	def btnStartDateChange(self):
 		self.calStartDate.show()
 		self.calEndDate.hide()
@@ -176,7 +236,6 @@ class Calculation(QWidget):
 		self.UnderlyingPriceEdit.setText(str(self.spot))
 		
 		self.btnStartDate.setText(str(year)+'/'+str(month)+'/'+str(day))
-
 		self.calStartDate.hide()
 	
 	def btnEndDateChange(self):
@@ -199,12 +258,21 @@ class Calculation(QWidget):
 		
 		self.btnEndDate.setText(str(year)+'/'+str(month)+'/'+str(day))
 		self.calEndDate.hide()
+
+		china_calendar=China()
+		self.tradedays=china_calendar.businessDaysBetween(self.st_date,self.ed_date)
+		self.tradedaysEdit.setText(str(self.tradedays))
 		
 	
 	def onActivatedType(self,Type):
 		self.OptionType=Type
+	def onActivatedCalibration(self,Calibration):
+		self.ParameterCalibration=Calibration
 	def StrikeChange(self,strike):
-		self.strike=float(strike)
+		if strike==' ':
+			pass
+		else:
+			self.strike=float(strike)
 
 	
 if __name__=='__main__':

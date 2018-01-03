@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import pandas as pd
+from scipy.optimize import minimize
 class Model:
 	def __init__(self,a,b,r0,sigma,tradedays,strike,numberPaths,optiontype,min_):
 		self.a=a
@@ -57,8 +58,8 @@ class ETD:
             		self.simulation_2()
     	def simulation_1(self):#d>1
         	c=(self.sigma**2)*(1-np.exp(-self.a))/(4*self.a)
-        	print c
-        	print self.d
+        	#print c
+        	#print self.d
         	self.PathPrice=[]
         	for j in range(self.numberPaths-1):
             		r=[self.r0]
@@ -91,8 +92,8 @@ class ETD:
             		r=[self.r0]
             		for i in range(self.tradedays-1):
                 		lambda_=r[-1]*np.exp(-self.a)/c
-                		N=st.poisson(lambda_/2)
-                		X=self.Poisson_simulation(N)
+                		N=np.random.poisson(lambda_/2)
+                		X=np.random.chisquare(self.d+2*N)
                 		r.append(c*X)
                 		#print c*X
             		temp_sum=np.sum(r[1:])
@@ -110,15 +111,9 @@ class ETD:
             		self.PathPrice.append(payoff*np.exp(-r[-1]*(self.tradedays/360.0)))
             	#print j
         	self.price=np.mean(self.PathPrice)
-    	def Poisson_simulation(self,N):
-        	i=0
-        	sum=0
-       		while ((1-N.cdf(i))>0.05):
-            		sum+=np.random.chisquare(self.d+2*i)*N.pmf(i)
-            		i=i+1 
-        	return sum
+   
 
-class Paras:
+class moment:
 	def __init__(self):
 		self.paras()
 	def paras(self):
@@ -131,7 +126,7 @@ class Paras:
 		delta_T=np.sum(GC.diff(1)**2)
 		self.sigma=np.sqrt(delta_T/(np.sum(GC[:-1])))
 		self.mu=GC_average
-		self.alpha=(self.sigma**2)*self.mu/(2*GC_vol)
+		self.alpha=(self.sigma**2)*self.mu/(2*GC_vol**2)
 		self.min=np.mean(GC)[0]
 
 class LinearReg:
@@ -167,7 +162,28 @@ class LinearReg:
 		beta=(np.linalg.inv(temp1)).dot(temp2)
 		return beta
 
-
+class GMM:
+	def __init__(self):
+		self.paras()
+	def paras(self):
+		data=pd.read_excel("GC001.xlsx")
+		GC_index=pd.DatetimeIndex(data[3:].index)
+		GC=pd.DataFrame(np.matrix(data[3:])/100.0,index=GC_index,columns=['spot'])
+		self.GC=GC
+		delta_r_=GC.diff(1)[1:]
+		def reson(x):
+    			sum=0
+    			for k in range(len(delta_r_)):
+        			e1=delta_r_.iloc[k,0]-x[0]*(x[1]-GC.iloc[k,0])
+       				e2=e1*GC.iloc[k,0]
+        			e3=e1**2-x[2]*GC.iloc[k,0]
+        			e4=e3*GC.iloc[k,0]
+        			sum=sum+e1**2+e2**2+e3**2+e4**2
+    			return sum
+		x0=np.array([0.01,0.01,0.1])
+		self.res=minimize(reson, x0, method='nelder-mead',
+                	options={'xtol': 1e-4, 'disp': True})
+	
 
 
 
